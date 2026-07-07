@@ -1,0 +1,48 @@
+[project]
+name = "langgraph-travel-cs-agent"
+version = "0.1.0"
+description = "基于 LangGraph 搭建有状态工单智能体，对接自研客服知识库平台"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain>=0.2.0",
+    "langchain-community>=0.2.0",
+    "redis>=5.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "pymilvus>=2.4.0",
+    "httpx>=0.27.0",
+    "tenacity>=8.2.0",
+    "prometheus-client>=0.20.0",
+    "structlog>=24.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "black>=24.0.0",
+    "isort>=5.13.0",
+    "flake8>=6.0.0",
+    "mypy>=1.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line-length = 120
