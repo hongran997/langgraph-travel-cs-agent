@@ -3,7 +3,6 @@ LangGraph 状态机工作流
 定义工单状态流转图，包含意图识别、知识库查询、分支路由等节点
 """
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.redis import RedisSaver
 from src.state.schema import TicketState
 from src.agent.nodes import (
     recognize_intent,
@@ -34,25 +33,42 @@ def build_workflow() -> StateGraph:
     
     workflow.set_entry_point("recognize_intent")
     
-    workflow.add_edge("recognize_intent", "query_knowledge_base")
+    workflow.add_conditional_edges(
+        "recognize_intent",
+        _after_intent_recognition,
+        {
+            "query_knowledge_base": "query_knowledge_base",
+            "human_escalation": "human_escalation",
+        },
+    )
     workflow.add_edge("query_knowledge_base", "route_decision")
     
     workflow.add_conditional_edges(
         "route_decision",
         _get_next_node,
         {
-            "ask_credentials": "ask_credentials",
+            "ask_missing_credentials": "ask_credentials",
             "human_escalation": "human_escalation",
             "auto_resolve": "auto_resolve",
             "ask_clarification": "recognize_intent",
+            "recognize_intent": "recognize_intent",
         },
     )
     
-    workflow.add_edge("ask_credentials", "recognize_intent")
+    workflow.add_edge("ask_credentials", "route_decision")
     workflow.add_edge("human_escalation", END)
     workflow.add_edge("auto_resolve", END)
     
     return workflow
+
+
+def _after_intent_recognition(state: TicketState) -> str:
+    intent = state.get("current_intent")
+    confidence = state.get("intent_confidence", 0.0)
+    # 只有完全无法识别意图时（inquiry + 0.5 = 无关键词命中），才直接转人工
+    if intent == "inquiry" and confidence <= 0.5:
+        return "human_escalation"
+    return "query_knowledge_base"
 
 
 def _get_next_node(state: TicketState) -> str:
@@ -63,8 +79,8 @@ def _get_next_node(state: TicketState) -> str:
     
     action = last_decision["action"]
     
-    if action == "ask_missing_credentials":
-        return "ask_credentials"
+    if action in ("ask_missing_credentials", "ask_credentials"):
+        return "ask_missing_credentials"
     elif action == "escalate_to_human":
         return "human_escalation"
     elif action == "auto_resolve":
@@ -80,6 +96,7 @@ def compile_workflow(with_checkpoint: bool = True):
     
     if with_checkpoint and settings.checkpoint_enabled:
         try:
+            from langgraph.checkpoint.redis import RedisSaver
             redis_service = RedisService()
             checkpointer = RedisSaver(redis_service.client)
             app = workflow.compile(checkpointer=checkpointer)

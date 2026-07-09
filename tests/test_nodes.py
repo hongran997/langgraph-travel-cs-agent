@@ -13,7 +13,8 @@ from src.config.templates import get_template
 
 
 def _make_state(product_type="flight", message="", intent=None, confidence=0.0,
-                credentials=None, rag_results=None, completed=False):
+                credentials=None, rag_results=None, completed=False,
+                escalation_reason=None):
     """构造测试用 State"""
     return {
         "ticket_info": {
@@ -35,7 +36,7 @@ def _make_state(product_type="flight", message="", intent=None, confidence=0.0,
         "current_node": "start",
         "routing_path": [],
         "need_human_escalation": False,
-        "escalation_reason": None,
+        "escalation_reason": escalation_reason,
         "is_completed": completed,
         "completion_reason": None,
     }
@@ -112,7 +113,8 @@ class TestRouting:
         state = _make_state(
             intent="refund",
             confidence=0.3,
-            credentials=[{"type": "order_no", "value": "123", "verified": True}],
+            credentials=[{"type": "order_no", "value": "123", "verified": True},
+                        {"type": "ticket_no", "value": "456", "verified": True}],
             rag_results=[{"confidence": 0.8}],
         )
         result = route_decision(state)

@@ -33,7 +33,7 @@ class TrainTemplate(BaseBusinessTemplate):
     }
 
     resolution_templates: Dict[str, str] = {
-        "refund": "已为您办理火车票退票，退款将在1-15个工作日内退回，开车前8天以上免收退票费。",
+        "refund": "已为您办理火车票退票，您可在12306官网或APP查看退款进度，退款将在1-15个工作日内退回，开车前8天以上免收退票费。",
         "reschedule": "已为您完成火车票改签，新车次信息已通过短信发送，请留意查收。",
         "cancel": "已为您取消火车票订单，退款将在1-15个工作日内原路返回。",
         "seat": "已为您查询座位信息，您可以在12306官网或APP上办理选座。",
