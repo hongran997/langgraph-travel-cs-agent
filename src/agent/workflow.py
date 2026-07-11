@@ -23,7 +23,6 @@ logger = get_logger(__name__)
 def build_workflow() -> StateGraph:
     workflow = StateGraph(TicketState)
     
-    # 使用追踪装饰器包装节点函数，记录执行耗时和异常
     workflow.add_node("recognize_intent", trace_node("意图识别")(recognize_intent))
     workflow.add_node("query_knowledge_base", trace_node("知识库查询")(query_knowledge_base))
     workflow.add_node("route_decision", trace_node("分支路由")(route_decision))
@@ -47,15 +46,23 @@ def build_workflow() -> StateGraph:
         "route_decision",
         _get_next_node,
         {
-            "ask_missing_credentials": "ask_credentials",
+            "ask_credentials": "ask_credentials",
             "human_escalation": "human_escalation",
             "auto_resolve": "auto_resolve",
             "ask_clarification": "recognize_intent",
             "recognize_intent": "recognize_intent",
+            "end_invoke": END,
         },
     )
     
-    workflow.add_edge("ask_credentials", END)
+    workflow.add_conditional_edges(
+        "ask_credentials",
+        _after_ask_credentials,
+        {
+            "end_invoke": END,
+            "route_decision": "route_decision",
+        },
+    )
     workflow.add_edge("human_escalation", END)
     workflow.add_edge("auto_resolve", END)
     
@@ -72,23 +79,40 @@ def _after_intent_recognition(state: TicketState) -> str:
 
 
 def _get_next_node(state: TicketState) -> str:
-    last_decision = state["workflow_decisions"][-1] if state["workflow_decisions"] else None
-    
-    if not last_decision:
+    decisions = state["workflow_decisions"]
+    if not decisions:
         return "recognize_intent"
     
+    last_decision = decisions[-1]
     action = last_decision["action"]
     
-    if action in ("ask_missing_credentials", "ask_credentials"):
-        return "ask_missing_credentials"
-    elif action == "escalate_to_human":
-        return "human_escalation"
+    if action == "ask_credentials":
+        if len(decisions) >= 2 and decisions[-2].get("node_name") == "ask_credentials":
+            return "end_invoke"
+        return "ask_credentials"
     elif action == "auto_resolve":
         return "auto_resolve"
+    elif action == "escalate_to_human":
+        return "human_escalation"
     elif action == "ask_clarification":
         return "recognize_intent"
     else:
         return "recognize_intent"
+
+
+def _after_ask_credentials(state: TicketState) -> str:
+    decisions = state["workflow_decisions"]
+    if not decisions:
+        return "route_decision"
+    
+    last_decision = decisions[-1]
+    action = last_decision.get("action", "")
+
+    if action == "ask_missing_credentials":
+        return "end_invoke"
+    elif action == "escalate_to_human":
+        return "end_invoke"
+    return "route_decision"
 
 
 def _build_retry_policy():
