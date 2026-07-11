@@ -55,7 +55,7 @@ def build_workflow() -> StateGraph:
         },
     )
     
-    workflow.add_edge("ask_credentials", "route_decision")
+    workflow.add_edge("ask_credentials", END)
     workflow.add_edge("human_escalation", END)
     workflow.add_edge("auto_resolve", END)
     
@@ -91,6 +91,22 @@ def _get_next_node(state: TicketState) -> str:
         return "recognize_intent"
 
 
+def _build_retry_policy():
+    """
+    构建工作流节点的自动重试策略：
+    - 最大重试 3 次
+    - 指数退避（初始 1s，上限 10s，backoff_factor=2）
+    - 仅对连接类、超时类异常重试
+    """
+    if not settings.node_retry_enabled:
+        return None
+    return {
+        "stop_after_attempt": settings.node_retry_max_attempts,
+        "retry_if_exception_type": (ConnectionError, TimeoutError,),
+        "wait_exponential_jitter": True,
+    }
+
+
 def compile_workflow(with_checkpoint: bool = True):
     workflow = build_workflow()
     
@@ -107,5 +123,14 @@ def compile_workflow(with_checkpoint: bool = True):
     else:
         app = workflow.compile()
         logger.info("workflow_compiled_without_checkpoint")
+
+    retry_policy = _build_retry_policy()
+    if retry_policy:
+        app = app.with_retry(**retry_policy)
+        logger.info(
+            "workflow_retry_policy_enabled",
+            max_attempts=retry_policy["stop_after_attempt"],
+            wait_exponential_jitter=retry_policy["wait_exponential_jitter"],
+        )
     
     return app

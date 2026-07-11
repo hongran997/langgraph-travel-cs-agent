@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     checkpoint_enabled: bool = True
     max_conversation_history: int = 50
 
+    node_retry_enabled: bool = True
+    node_retry_max_attempts: int = 3
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
