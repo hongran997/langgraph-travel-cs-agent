@@ -94,22 +94,47 @@ def query_knowledge_base(state: TicketState) -> Dict[str, Any]:
             "content": weather_response,
             "timestamp": datetime.now().isoformat(),
         }
-    else:
-        rag_service = RAGService()
-        results = rag_service.query(query)
 
-        new_turn: ConversationTurn = {
-            "role": "assistant",
-            "content": results[0]["answer"] if results else "暂无相关解决方案",
+        decision: WorkflowDecision = {
+            "node_name": "knowledge_base",
+            "action": "query_knowledge_base",
+            "confidence": 0.95,
             "timestamp": datetime.now().isoformat(),
+            "metadata": {"query": query[:100], "source": "mcp-weather"},
         }
+
+        logger.info(
+            "knowledge_base_query_completed",
+            ticket_id=ticket_info["ticket_id"],
+            query=query[:100],
+            source="mcp-weather",
+        )
+
+        return {
+            "rag_results": state["rag_results"] + results,
+            "current_node": "knowledge_base",
+            "workflow_decisions": state["workflow_decisions"] + [decision],
+            "conversation_history": state["conversation_history"] + [new_turn],
+            "routing_path": state["routing_path"] + ["knowledge_base"],
+            "is_completed": True,
+            "completion_reason": "weather_query",
+        }
+
+    rag_service = RAGService()
+    results = rag_service.query(query)
+
+    new_turn: ConversationTurn = {
+        "role": "assistant",
+        "content": results[0]["answer"] if results else "暂无相关解决方案",
+        "timestamp": datetime.now().isoformat(),
+    }
 
     logger.info(
         "knowledge_base_query_completed",
         ticket_id=ticket_info["ticket_id"],
         query=query[:100],
         result_count=len(results),
-        source="mcp-weather" if weather_response else "rag",
+        source="rag",
     )
 
     decision: WorkflowDecision = {

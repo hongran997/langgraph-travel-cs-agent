@@ -40,7 +40,14 @@ def build_workflow() -> StateGraph:
             "human_escalation": "human_escalation",
         },
     )
-    workflow.add_edge("query_knowledge_base", "route_decision")
+    workflow.add_conditional_edges(
+        "query_knowledge_base",
+        _after_knowledge_base,
+        {
+            "route_decision": "route_decision",
+            "__end__": END,
+        },
+    )
     
     workflow.add_conditional_edges(
         "route_decision",
@@ -71,10 +78,15 @@ def build_workflow() -> StateGraph:
 def _after_intent_recognition(state: TicketState) -> str:
     intent = state.get("current_intent")
     confidence = state.get("intent_confidence", 0.0)
-    # 只有完全无法识别意图时（inquiry + 0.5 = 无关键词命中），才直接转人工
     if intent == "inquiry" and confidence <= 0.5:
         return "human_escalation"
     return "query_knowledge_base"
+
+
+def _after_knowledge_base(state: TicketState) -> str:
+    if state.get("is_completed") or state.get("completion_reason") == "weather_query":
+        return "__end__"
+    return "route_decision"
 
 
 def _get_next_node(state: TicketState) -> str:
