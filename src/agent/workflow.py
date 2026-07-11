@@ -51,7 +51,6 @@ def build_workflow() -> StateGraph:
             "auto_resolve": "auto_resolve",
             "ask_clarification": "recognize_intent",
             "recognize_intent": "recognize_intent",
-            "end_invoke": END,
         },
     )
     
@@ -59,7 +58,7 @@ def build_workflow() -> StateGraph:
         "ask_credentials",
         _after_ask_credentials,
         {
-            "end_invoke": END,
+            "__end__": END,
             "route_decision": "route_decision",
         },
     )
@@ -87,15 +86,13 @@ def _get_next_node(state: TicketState) -> str:
     action = last_decision["action"]
     
     if action == "ask_credentials":
-        if len(decisions) >= 2 and decisions[-2].get("node_name") == "ask_credentials":
-            return "end_invoke"
         return "ask_credentials"
     elif action == "auto_resolve":
         return "auto_resolve"
     elif action == "escalate_to_human":
         return "human_escalation"
     elif action == "ask_clarification":
-        return "recognize_intent"
+        return "ask_clarification"
     else:
         return "recognize_intent"
 
@@ -109,9 +106,9 @@ def _after_ask_credentials(state: TicketState) -> str:
     action = last_decision.get("action", "")
 
     if action == "ask_missing_credentials":
-        return "end_invoke"
+        return "__end__"
     elif action == "escalate_to_human":
-        return "end_invoke"
+        return "__end__"
     return "route_decision"
 
 
