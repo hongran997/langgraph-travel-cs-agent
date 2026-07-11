@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     node_retry_enabled: bool = True
     node_retry_max_attempts: int = 3
 
+    node_heartbeat_enabled: bool = True
+    node_heartbeat_timeout: float = 30.0
+    node_heartbeat_interval: float = 5.0
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

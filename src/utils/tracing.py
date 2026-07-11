@@ -7,6 +7,8 @@ import functools
 from typing import Callable, Any
 from datetime import datetime
 from src.utils.logger import get_logger
+from src.utils.heartbeat import with_heartbeat
+from src.config.settings import settings
 from src.utils.metrics import (
     NODE_EXECUTION_DURATION,
     NODE_EXECUTION_ERRORS,
@@ -20,7 +22,7 @@ logger = get_logger(__name__)
 def trace_node(node_name: str):
     """
     节点执行追踪装饰器
-    记录节点执行耗时、输入输出和异常信息
+    记录节点执行耗时、输入输出和异常信息，可选启用心跳检测
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
@@ -35,9 +37,21 @@ def trace_node(node_name: str):
                 current_intent=state.get("current_intent"),
                 current_node=state.get("current_node"),
             )
-            
+
+            def _run_func():
+                return func(state, *args, **kwargs)
+
             try:
-                result = func(state, *args, **kwargs)
+                if settings.node_heartbeat_enabled:
+                    hb_wrapper = with_heartbeat(
+                        node_name=node_name,
+                        timeout=settings.node_heartbeat_timeout,
+                        interval=settings.node_heartbeat_interval,
+                    )
+                    result = hb_wrapper(_run_func)()
+                else:
+                    result = _run_func()
+
                 duration = time.time() - start_time
                 
                 NODE_EXECUTION_DURATION.labels(node_name=node_name).observe(duration)
